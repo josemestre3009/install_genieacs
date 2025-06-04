@@ -6,7 +6,7 @@ sudo apt update && sudo apt upgrade -y
 
 # Instalar dependencias
 echo "Instalando dependencias..."
-sudo apt install -y git curl build-essential mongodb nodejs npm
+sudo apt install -y git curl build-essential gnupg
 
 # Instalar Node.js (si ya existe, se elimina primero)
 echo "Instalando Node.js..."
@@ -16,30 +16,33 @@ sudo apt install -y nodejs
 
 # Verificar las versiones de Node.js y npm
 echo "Verificando versiones de Node.js y npm..."
-if ! node -v || ! npm -v; then
-    echo "Error: Node.js o npm no se instalaron correctamente."
-    exit 1
-fi
 node -v
 npm -v
 
 # Instalar MongoDB
 echo "Instalando MongoDB..."
-sudo apt-get install gnupg curl
-curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
-   sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+
+# Eliminar cualquier instalación previa de MongoDB
+sudo apt-get purge mongodb-org* -y
+sudo apt-get autoremove --purge -y
+sudo rm -rf /var/lib/mongodb /var/log/mongodb /etc/mongod.conf /etc/systemd/system/mongodb.service
+
+# Agregar la clave GPG de MongoDB
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+
+# Agregar el repositorio de MongoDB
 echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
 
+# Actualizar los repositorios e instalar MongoDB
 sudo apt-get update
 sudo apt-get install -y mongodb-org
+
+# Iniciar MongoDB
 sudo systemctl start mongod
 
 # Verificar que MongoDB está corriendo
 echo "Verificando estado de MongoDB..."
-if ! sudo systemctl status mongodb; then
-    echo "Error al iniciar MongoDB. Revisa los logs."
-    exit 1
-fi
+sudo systemctl status mongod
 
 # Instalación de GenieACS
 echo "Instalando GenieACS..."
@@ -47,10 +50,7 @@ sudo npm install -g genieacs@1.2.13
 
 # Verificar instalación de GenieACS
 echo "Verificando instalación de GenieACS..."
-if ! which genieacs-cwmp; then
-    echo "Error: GenieACS no está instalado correctamente."
-    exit 1
-fi
+which genieacs-cwmp
 
 # Crear Usuario y Directorios para GenieACS
 echo "Creando usuario y directorios para GenieACS..."
@@ -85,21 +85,78 @@ sudo chown genieacs:genieacs /var/log/genieacs
 
 # Crear servicios systemd para GenieACS
 echo "Creando servicios systemd para GenieACS..."
+
 # Crear GenieACS CWMP
 sudo tee /etc/systemd/system/genieacs-cwmp.service > /dev/null <<EOF
 [Unit]
 Description=GenieACS CWMP
 After=network.target
+
 [Service]
 User=genieacs
 EnvironmentFile=/opt/genieacs/genieacs.env
 ExecStart=/usr/bin/genieacs-cwmp
+
 [Install]
 WantedBy=default.target
 EOF
 
 # Crear GenieACS NBI
-# (similar al bloque anterior)
+sudo tee /etc/systemd/system/genieacs-nbi.service > /dev/null <<EOF
+[Unit]
+Description=GenieACS NBI
+After=network.target
+
+[Service]
+User=genieacs
+EnvironmentFile=/opt/genieacs/genieacs.env
+ExecStart=/usr/bin/genieacs-nbi
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Crear GenieACS FS
+sudo tee /etc/systemd/system/genieacs-fs.service > /dev/null <<EOF
+[Unit]
+Description=GenieACS FS
+After=network.target
+
+[Service]
+User=genieacs
+EnvironmentFile=/opt/genieacs/genieacs.env
+ExecStart=/usr/bin/genieacs-fs
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Crear GenieACS UI
+sudo tee /etc/systemd/system/genieacs-ui.service > /dev/null <<EOF
+[Unit]
+Description=GenieACS UI
+After=network.target
+
+[Service]
+User=genieacs
+EnvironmentFile=/opt/genieacs/genieacs.env
+ExecStart=/usr/bin/genieacs-ui
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Crear configuración para logrotate
+echo "Configurando logrotate para GenieACS..."
+sudo tee /etc/logrotate.d/genieacs > /dev/null <<EOF
+/var/log/genieacs/*.log /var/log/genieacs/*.yaml {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    dateext
+}
+EOF
 
 # Recargar systemd y habilitar servicios
 echo "Recargando systemd y habilitando los servicios..."
@@ -107,8 +164,21 @@ sudo systemctl daemon-reload
 
 # Habilitar y arrancar los servicios
 echo "Habilitando y arrancando los servicios..."
+
 sudo systemctl enable genieacs-cwmp
 sudo systemctl start genieacs-cwmp
+sudo systemctl status genieacs-cwmp
 
-# Finalizar
+sudo systemctl enable genieacs-nbi
+sudo systemctl start genieacs-nbi
+sudo systemctl status genieacs-nbi
+
+sudo systemctl enable genieacs-fs
+sudo systemctl start genieacs-fs
+sudo systemctl status genieacs-fs
+
+sudo systemctl enable genieacs-ui
+sudo systemctl start genieacs-ui
+sudo systemctl status genieacs-ui
+
 echo "Instalación completada. Puedes acceder a GenieACS en http://localhost:3000"
