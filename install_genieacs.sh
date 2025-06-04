@@ -21,21 +21,22 @@ npm -v
 
 # Instalar MongoDB
 echo "Instalando MongoDB..."
+sudo apt update
 sudo apt install -y mongodb
 
-# Verificar que MongoDB esté corriendo
+# Verificar que MongoDB está corriendo
 echo "Verificando estado de MongoDB..."
 sudo systemctl status mongodb
 
-# Instalar GenieACS
+# Instalación de GenieACS
 echo "Instalando GenieACS..."
 sudo npm install -g genieacs@1.2.13
 
-# Verificar que GenieACS se instaló correctamente
+# Verificar instalación de GenieACS
 echo "Verificando instalación de GenieACS..."
 which genieacs-cwmp
 
-# Crear usuario y directorios necesarios
+# Crear Usuario y Directorios para GenieACS
 echo "Creando usuario y directorios para GenieACS..."
 sudo useradd --system --no-create-home --user-group genieacs
 sudo mkdir -p /opt/genieacs/ext
@@ -43,15 +44,17 @@ sudo chown genieacs:genieacs /opt/genieacs/ext
 
 # Crear archivo de variables de entorno
 echo "Creando archivo de variables de entorno..."
-echo "GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
+cat <<EOF | sudo tee /opt/genieacs/genieacs.env
+GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
 GENIEACS_NBI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-nbi-access.log
 GENIEACS_FS_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-fs-access.log
 GENIEACS_UI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-ui-access.log
 GENIEACS_DEBUG_FILE=/var/log/genieacs/genieacs-debug.yaml
 NODE_OPTIONS=--enable-source-maps
-GENIEACS_EXT_DIR=/opt/genieacs/ext" | sudo tee /opt/genieacs/genieacs.env
+GENIEACS_EXT_DIR=/opt/genieacs/ext
+EOF
 
-# Añadir clave JWT secreta
+# Añadir la clave JWT secreta
 echo "Añadiendo clave JWT secreta..."
 node -e "console.log('GENIEACS_UI_JWT_SECRET=' + require('crypto').randomBytes(128).toString('hex'))" | sudo tee -a /opt/genieacs/genieacs.env
 
@@ -61,12 +64,15 @@ sudo chmod 600 /opt/genieacs/genieacs.env
 
 # Crear directorios de logs
 echo "Creando directorios de logs..."
-sudo mkdir /var/log/genieacs
+sudo mkdir -p /var/log/genieacs
 sudo chown genieacs:genieacs /var/log/genieacs
 
 # Crear servicios systemd para GenieACS
-echo "Creando servicios systemd..."
-sudo systemctl edit --force --full genieacs-cwmp <<EOF
+
+echo "Creando servicios systemd para GenieACS..."
+
+# Crear GenieACS CWMP
+sudo tee /etc/systemd/system/genieacs-cwmp.service > /dev/null <<EOF
 [Unit]
 Description=GenieACS CWMP
 After=network.target
@@ -80,7 +86,8 @@ ExecStart=/usr/bin/genieacs-cwmp
 WantedBy=default.target
 EOF
 
-sudo systemctl edit --force --full genieacs-nbi <<EOF
+# Crear GenieACS NBI
+sudo tee /etc/systemd/system/genieacs-nbi.service > /dev/null <<EOF
 [Unit]
 Description=GenieACS NBI
 After=network.target
@@ -94,7 +101,8 @@ ExecStart=/usr/bin/genieacs-nbi
 WantedBy=default.target
 EOF
 
-sudo systemctl edit --force --full genieacs-fs <<EOF
+# Crear GenieACS FS
+sudo tee /etc/systemd/system/genieacs-fs.service > /dev/null <<EOF
 [Unit]
 Description=GenieACS FS
 After=network.target
@@ -108,7 +116,8 @@ ExecStart=/usr/bin/genieacs-fs
 WantedBy=default.target
 EOF
 
-sudo systemctl edit --force --full genieacs-ui <<EOF
+# Crear GenieACS UI
+sudo tee /etc/systemd/system/genieacs-ui.service > /dev/null <<EOF
 [Unit]
 Description=GenieACS UI
 After=network.target
@@ -122,18 +131,25 @@ ExecStart=/usr/bin/genieacs-ui
 WantedBy=default.target
 EOF
 
-# Configurar logrotate para los logs de GenieACS
+# Crear configuración para logrotate
 echo "Configurando logrotate para GenieACS..."
-echo "/var/log/genieacs/*.log /var/log/genieacs/*.yaml {
-   daily
-   rotate 30
-   compress
-   delaycompress
-   dateext
-}" | sudo tee /etc/logrotate.d/genieacs
+sudo tee /etc/logrotate.d/genieacs > /dev/null <<EOF
+/var/log/genieacs/*.log /var/log/genieacs/*.yaml {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    dateext
+}
+EOF
 
-# Inicializar y habilitar los servicios
-echo "Inicializando los servicios..."
+# Recargar systemd y habilitar servicios
+echo "Recargando systemd y habilitando los servicios..."
+sudo systemctl daemon-reload
+
+# Habilitar y arrancar los servicios
+echo "Habilitando y arrancando los servicios..."
+
 sudo systemctl enable genieacs-cwmp
 sudo systemctl start genieacs-cwmp
 sudo systemctl status genieacs-cwmp
@@ -151,3 +167,4 @@ sudo systemctl start genieacs-ui
 sudo systemctl status genieacs-ui
 
 echo "Instalación completada. Puedes acceder a GenieACS en http://localhost:3000"
+
