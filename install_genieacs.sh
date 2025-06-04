@@ -167,4 +167,3 @@ sudo systemctl start genieacs-ui
 sudo systemctl status genieacs-ui
 
 echo "Instalación completada. Puedes acceder a GenieACS en http://localhost:3000"
-
