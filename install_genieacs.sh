@@ -42,7 +42,7 @@ sudo systemctl start mongod
 
 # Verificar que MongoDB está corriendo
 echo "Verificando estado de MongoDB..."
-sudo systemctl status mongod
+#sudo systemctl status mongod
 
 # Instalación de GenieACS
 echo "Instalando GenieACS..."
