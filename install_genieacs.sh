@@ -182,3 +182,23 @@ sudo systemctl start genieacs-ui
 sudo systemctl status genieacs-ui
 
 echo "Instalación completada. Puedes acceder a GenieACS en http://localhost:3000"
+
+echo ""
+read -p "¿Quieres instalar ZeroTier en este equipo? (s/n): " INSTALAR_ZT
+
+if [[ "$INSTALAR_ZT" == "s" || "$INSTALAR_ZT" == "S" ]]; then
+    echo "Instalando ZeroTier..."
+    curl -s https://install.zerotier.com | sudo bash
+
+    read -p "Introduce tu Network ID de ZeroTier: " ZTNET
+    sudo zerotier-cli join $ZTNET
+
+    echo "ZeroTier instalado y unido a la red $ZTNET."
+    echo "Recuerda autorizar este dispositivo en https://my.zerotier.com"
+else
+    echo "ZeroTier NO se instalará."
+fi
+
+
+
+
